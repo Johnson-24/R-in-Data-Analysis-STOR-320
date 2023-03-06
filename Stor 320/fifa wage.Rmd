@@ -1,0 +1,113 @@
+---
+title: "FIFA2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(generics)
+library(modelr)       #Helpful Functions in Modeling
+library(xtable)
+library(purrr)
+library(broom)
+library(class)
+library(kable)
+```
+
+```{r, echo=FALSE}
+library(readr)
+FIFA_20 <- read_csv("FIFA_20.csv")
+table<-FIFA_20
+```
+
+```{r, echo=FALSE}
+table2x<-table %>% select(wage_eur,work_rate,position,skill_moves,shooting,defending,fk_accuracy)
+mod1x=lm(wage_eur~position+factor(skill_moves)+shooting+defending+fk_accuracy,data=table2x)
+```
+
+```{r, echo=FALSE}
+table3x<-table2x%>%select(-wage_eur)
+summary(mod1x)
+colnames(table3x)[summary(mod1x)$coefficients[-1,4]<0.01]
+
+
+table3x=table3x%>%select(work_rate,position,skill_moves,shooting,defending,fk_accuracy)
+table3x=cbind(table3x,wage_eur=table2x$wage_eur)
+#table3x
+```
+
+```{r, echo=FALSE}
+modx<-function(data,i){
+ mod1x=lm(wage_eur~(position)+factor(skill_moves)+poly(shooting,i)+poly(defending,i), data=data)
+  return (mod1x)
+}
+
+table4x=table3x%>%crossv_kfold(10)
+
+resultx<-table4x%>%mutate(tr.modelx=map(train,modx,i=1))%>%
+  mutate(predict=map2(test,tr.modelx,~augment(.y,newdata=.x)))%>%
+  select(predict)%>%unnest(cols=c(predict))
+
+rmse<-function(x,y){
+  resid=x-y
+  rmse=sqrt(mean(resid^2))
+  return(rmse)
+}
+
+```
+
+```{r, echo=FALSE}
+arrayx=rep(NA,12)
+for (i in 1:12){
+  resultx<-table4x%>%mutate(tr.modelx=map(train,modx,i=i))%>%
+  mutate(predictx=map2(test,tr.modelx,~augment(.y,newdata=.x)))%>%
+  select(predictx)%>%unnest(cols=c(predictx))
+  arrayx[i]=rmse(table2x$wage_eur,resultx$.fitted)
+}
+```
+
+```{r, echo=FALSE}
+min_ix=which.min(arrayx)
+min_ix
+min(arrayx)
+ggplot(tibble(arrayx))+geom_line(aes(1:12,arrayx),color="lightskyblue2",size=2)+
+  theme_minimal() +
+  xlab("Choice of i") +
+  ylab("RMSE##") +
+  theme(text=element_text(size=10))
+  
+
+
+ggplot(data=table)+geom_boxplot(aes(y=wage_eur))
+```
+
+```{r, echo=FALSE}
+resultx<-table4x%>%mutate(tr.modelx=map(train,modx,i=min_ix))%>%
+  mutate(predictx=map2(test,tr.modelx,~augment(.y,newdata=.x)))%>%
+  select(predictx)%>%unnest(cols=c(predictx))
+```
+
+```{r, echo=FALSE}
+table5x=cbind(name=table$name,nation=table$nationality,club=table$club,table3x,pred_income=resultx$.fitted)
+```
+
+```{r, echo=FALSE}
+head(table5x)
+table5x=table5x%>%mutate(resid=wage_eur-pred_income)
+
+#ggplot(data=table)+geom_point(aes(x=wage_eur,y=))
+```
+
+```{r, echo=FALSE}
+ggplot(table5x,aes(x=wage_eur,y=resid))+geom_point()+geom_ref_line(h=0)+theme_bw()+ylab("resid")#ylim(c(-50,50))
+ggplot(table5x,aes(x=wage_eur,y=pred_income))+geom_point()+geom_abline(slope=1,intercept=0)#+ylim(c(0,100))
+```
+
+```{r}
+
+```
+
+
+
+
