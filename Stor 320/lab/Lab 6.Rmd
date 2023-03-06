@@ -1,0 +1,123 @@
+---
+title: "Lab 6: Control Structures"
+author: "FIRSTNAME LASTNAME"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# This is a good place to put libraries required for using the ggplot function
+knitr::opts_chunk$set(echo = TRUE)
+options(scipen=999)
+library(Ecdat)
+```
+
+# Introduction
+
+The main purpose of this lab is to practice control structures in R:
+
+- `if` and `else`: testing a condition and acting on it
+- `for`: execute a loop a fixed number of times
+- `while`: execute a loop while a condition is true
+- `repeat`: execute an infinite loop (must break out of it to stop) • break: break the execution of a loop
+- `next`: skip an iteration of a loop
+
+You will need to modify the code chunks so that the code works within each of chunk (usually this means modifying anything in ALL CAPS). You will also need to modify the code outside the code chunk. When you get the desired result for each step, change `Eval=F` to `Eval=T` and knit the document to HTML to make sure it works. After you complete the lab, you should submit your HTML file of what you have completed to Sakai before the deadline.
+
+# Part 1: Vector and Control Structures
+
+a) (2 points) Write code that creates a vector `x` that contains `100` random observations from the standard normal distribution (this is the normal distribution with the mean equal to `0` and the variance equal to `1`).
+
+```{r}
+x<-rep(NA,100)
+for (i in 1:100){
+  x[i]=rnorm(1)
+}
+x
+```
+
+b) (2 points) Write code that replaces the observations in the vector `x` that are greater than or equal to `0` with a string of characters `"non-negative"` and the observations that are smaller than `0` with a string of characters `"negative"`. Hint: try `ifelse()` funtion.
+
+```{r}
+x1<-ifelse(x>=0,"non-negative",ifelse(x<0,"negative",""))
+x1
+```
+
+c) (2 points) Write `for`-Loop to count how many observations in the vector `x` are non-negative and how many observations are negative. (There are many easier ways to solve this problem. Please use `for`-Loop to practice the things learned in the lecture.)
+
+```{r}
+num_non_nega=0
+num_nega=0
+
+for(i in 1:100){
+  if (x1[i]=="non-negative"){
+    num_non_nega=num_non_nega+1
+  }else{
+    num_nega=num_nega+1
+  }
+}
+num_non_nega
+num_nega
+
+```
+
+# Part 2: Matrix and Control Structures
+a) (4 points) Create a $100000$ by $10$ matrix `A` with the numbers $1:1000000$. Create a `for`-loop that calculates the sum for each row of the matrix and save the results to a vector `sum_row`.
+```{r}
+A<-matrix(1:1000000,nrow=100000,ncol=10)
+sum1=rep(0,100000)
+for (i in 1:100000){
+  for (j in 1:10){
+    sum1[i]=sum1[i]+A[i,j]
+  }}
+sum1
+```
+
+Verify that your results are consistent with what you obtain with the built-in `rowSums` function. 
+```{r,eval=F}
+sum_row_rowSums = as.integer(rowSums(A))
+head(sum_row_rowSums)
+```
+
+b) (4 points) Another common loop structure that is used is the `while` loop, which functions much like a `for` loop, but will only run as long as a test condition is `TRUE`. Modify your `for` loop from exercise (a) and make it into a `while` loop. Write code to check if the results from `for` loop are the same as the results from `while` loop.
+```{r}
+sum2=rep(0,100000)
+a=1
+b=1
+while(a<=100000){
+  while(b<=10){
+    
+  sum2[a]=sum2[a]+A[a,b]
+  b=b+1
+  }
+  a=a+1
+  b=1
+}
+sum2
+
+```
+
+# Part 3: Data Frame and Control Structures
+a) (4 points) Write a `for` loop to compute the mean of every column in `mtcars` and save the results to a vector `col_mean`. (Ignore missing values)
+```{r}
+str(mtcars)
+col_mean=rep(0,11)
+for (i in 1:11){
+  for (j in 1:32){
+    col_mean[i]=col_mean[i]+mtcars[j,i]
+  }
+}
+col_mean=col_mean/32
+col_mean
+```
+
+b) (2 points) Compute the number of unique values in each column of `iris` and print the results during the loop.
+```{r}
+num_unique=rep(0,5)
+for (i in 1:5){
+  num_unique[i]=length(unique(iris[i]))
+}
+
+num_unique
+```
+

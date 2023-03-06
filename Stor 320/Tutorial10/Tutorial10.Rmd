@@ -1,0 +1,349 @@
+---
+title: "STOR 320 Tutorial on Modeling II"
+author: ""
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning=F)
+options(scipen=999)
+library(tidyverse)    #Essential Functions
+library(modelr)       #Helpful Functions in Modeling
+library(xtable)
+
+DATA=read_csv("AirWaterTemp.csv",col_types=cols()) #River Data
+```
+
+# Introduction
+
+Today, we will work with daily water temperature and air temperature data observed for `r length(unique(DATA$L))` rivers in Spain. The goal of this tutorial is to identify the best model for predicting the maximum water temperature given the maximum air temperature. In the preview below, `W` represents the daily maximum water temperature and `A` represents the daily maximum air temperature. The data contains almost a full year of data for each of the `r length(unique(DATA$L))` different rivers.
+
+```{r,echo=F}
+head(DATA)
+
+```
+
+
+# Part 1: Examining the Relationship
+
+## Chunk 1: Overall Relationship
+
+Please modify the code chunk to visualize the relationship between `A` and `W` with scatterplot (set `alpha=0.3`) and smooth line.
+```{r}
+DATA%>%ggplot(aes(A,W))+geom_point(alpha=0.3)+geom_smooth(method="lm")+theme_minimal()
+```
+
+
+## Chunk 2: Location-Specific Relationship
+Do You Think This Relationship is the Same for All Locations? Please write a function to visualize the relationship between `A` and `W` with scatterplot (set `alpha=0.3`) and smooth line for a specified Location `L`.
+
+```{r,echo=F,eval=F}
+WAPLOT.func=function(Location){
+  
+  DATA%>%filter(L==Location)%>%ggplot(aes(A,W))+geom_point(alpha=0.3)+geom_smooth(method="lm")+theme_minimal()
+}
+```
+
+Test your function to see if it works:
+```{r, eval=F}
+WAPLOT.func(103)
+WAPLOT.func(105)
+WAPLOT.func(918)
+```
+
+
+## Chunk 3: Split Data into Train and Test Sets
+
+```{r}
+set.seed(216)
+TEST.LOCATIONS=sample(x=unique(DATA$L),size=3,replace=F)
+
+
+TRAIN = anti_join(DATA,tibble(L=TEST.LOCATIONS),by="L")
+TEST = semi_join(DATA,tibble(L=TEST.LOCATIONS),by="L")
+```
+
+## Chunk 4: Plots of Relationship for Train and Test Data
+Please write a function to visualize the relationship between `A` and `W` with scatterplot (set `alpha=0.3`) and smooth line for a specified Dataset.
+```{r,echo=F,eval=T}
+WAPLOT2.func=function(DATA){
+  DATA%>%ggplot(aes(A,W))+geom_point(alpha=0.3)+geom_smooth(method="lm")+theme_minimal()
+}
+```
+
+Test the function:
+```{r, eval=F}
+WAPLOT2.func(TRAIN)
+WAPLOT2.func(TEST)
+```
+
+# Part 2: Linear Regression Model
+
+## Chunk 1: Fitting Linear Model to Train Data
+Please complete the code chunk to fit a linear regression model on the training set. (Formula: `W~A`)
+```{r,echo=F,eval=F}
+linmod=lm(W~A,data=TRAIN)
+summary(linmod)
+```
+
+## Chunk 2: Getting Predictions from Linear Model
+```{r,eval=F}
+TRAIN2 = TRAIN %>% add_predictions(linmod,var="linpred")
+TEST2 = TEST %>% add_predictions(linmod,var="linpred")
+TRAIN2
+TEST2
+```
+
+## Chunk 3: Getting Residuals from Linear Model
+```{r,eval=F}
+TRAIN3 = TRAIN2 %>% add_residuals(linmod,var="linres")
+TEST3 = TEST2 %>% add_residuals(linmod,var="linres")
+```
+
+# Part 3: Polynomial Regression Model
+
+## Chunk 1: Fitting Polynomial Regression Models
+```{r,eval=F}
+poly2mod=lm(W~A+I(A^2),data=TRAIN)
+poly2mod
+poly3mod=lm(W~A+I(A^2)+I(A^3),data=TRAIN)
+poly4mod=lm(W~A+I(A^2)+I(A^3)+I(A^4),data=TRAIN)
+
+anova(linmod,poly2mod,poly3mod,poly4mod,test="Chisq")
+```
+
+## Chunk 2: Getting Predictions from Polynomial Models
+
+Please add the predictions of polynomial regression models to the training and testing sets with column names `poly2pred`, `poly3pred` and `poly4pred`.
+```{r,eval=F}
+TRAIN4 =TRAIN3 %>% add_predictions(poly2mod,var="poly2pred") %>% add_predictions(poly3mod,var="poly3pred") %>% add_predictions(poly4mod,var="poly4pred")
+TRAIN4
+  
+TEST4 =TEST3 %>% add_predictions(poly2mod,var="poly2pred") %>% add_predictions(poly3mod,var="poly3pred")%>% add_predictions(poly4mod,var="poly4pred")
+```
+
+## Chunk 3: Getting Residuals from Polynomial Models
+Please add the residuals of polynomial regression models to the training and testing sets with column names `poly2res`, `poly3res` and `poly4res`.
+```{r,eval=F}
+TRAIN5 =TRAIN4 %>% add_residuals(poly2mod,var="poly2res")%>% add_residuals(poly3mod,var="poly3res")%>% add_residuals(poly4mod,var="poly4res")
+  
+  
+  
+
+TEST5 =TEST4 %>% add_residuals(poly2mod,var="poly2res")%>% add_residuals(poly3mod,var="poly3res")%>% add_residuals(poly4mod,var="poly4res")
+  
+  
+  
+  
+```
+
+
+# Part 4: Nonlinear Logistic Model
+
+## Chunk 1: Logistic Model Investigation
+$$y=d+\frac{a}{1+e^{(b-cx)}}$$
+```{r,echo=F}
+set.seed(216)
+EXAMPLE=tibble(
+  x=rnorm(10000,mean=0,sd=5),
+  y=7+12/(1+exp(4-1*x))
+)
+ggplot(data=EXAMPLE) +
+  geom_point(aes(x=x,y=y)) +
+  theme_minimal()
+```
+
+## Chunk 2: Essential Functions for Nonlinear Logistic Model
+Please write a function to calculate mean squared error for the nonlinear logistic model.
+```{r,eval=F}
+logistic.model=function(COEF,DATA){
+  pred=COEF[1]+COEF[2]/(1+exp(COEF[3]-COEF[4]*DATA$A))
+}
+
+MSE.logistic=function(COEF,DATA){
+  resi=DATA$W-logistic.model(COEF,DATA)
+  mse=mean(resi^2,na.rm=T)
+  return(mse)
+}
+```
+
+## Chunk 3: Estimate Parameters for Nonlinear Logistic Model
+```{r,eval=F}
+logistic.mod=optim(
+  par=c(min(TRAIN$W,na.rm=T),
+        max(TRAIN$W,na.rm=T)-min(TRAIN$W,na.rm=T),
+        median(TRAIN$A,na.rm=T),
+        1),           #Smart Starting Values
+  fn=MSE.logistic,    #Function to Minimize
+  DATA=TRAIN       #Required Argument
+)
+print(logistic.mod)
+
+#coef1<-tibble(x=runif(2000,0,50),y=runif(2000,0,50),c=runif(2000,0,50),d=runif(2000,0,50))
+
+# x= apply(coef1,1,MSE.logistic,DATA=TRAIN)
+ #y=coef1%>%mutate(rank_x=x,rank_y=rank(x))%>%arrange(rank_y)
+# y
+ 
+
+```
+
+## Chunk 4: Obtain Predictions and Residuals
+```{r,eval=F}
+TRAIN6=TRAIN5 %>% mutate(logpred=logistic.model(logistic.mod$par,TRAIN5),
+                         logres=W-logpred)
+TEST6=TEST5 %>% mutate(logpred=logistic.model(logistic.mod$par,TEST5),
+                         logres=W-logpred)
+TRAIN6
+```
+
+# Intermission:
+
+The function `save.image()` in R can be used to save all objects in the global environment. This is very helpful when you want work off your results without rerunning all previous R code. The name of the exported information should contain the file extension *.Rdata*. These files can be extremely large depending how much RAM was utilized in your R session.  The function `load()` can be used to import a previous workspace.
+
+For more information on *.Rdata* file types, see https://fileinfo.com/extension/rdata for help.
+
+```{r,eval=F}
+save.image("Tutorial.Rdata")
+```
+
+```{r, eval=F}
+load("PATH_TO_THE_FILE")
+```
+
+
+# Part 5: Evaluation by Visualization
+
+## Chunk 1: Plotting Models
+```{r,echo=F,eval=F}
+TEST6 %>%
+  select(L,A,W,linpred,poly2pred,poly3pred,poly4pred,logpred)%>%
+  gather(linpred:logpred,key="Model",value="Pred",factor_key=T) %>%
+    ggplot() + 
+      geom_point(aes(x=A,y=W),color="gray") + 
+      theme_minimal() +
+      geom_line(aes(x=A,y=Pred,color=Model),size=2)
+```
+
+## Chunk 2: Predicted Versus Actual Max Water Temperature
+```{r,echo=F,eval=F}
+TEST6 %>%
+  select(L,A,W,linpred,poly2pred,poly3pred,poly4pred,logpred)%>%
+  gather(linpred:logpred,key="Model",value="Pred",factor_key=T) %>%
+    ggplot() + 
+    geom_point(aes(x=W,y=Pred,color=Model)) + 
+    geom_abline(a=0,b=1,color="black",size=2) +
+    xlab("Maximum Water Temperature") +
+    ylab("Predicted Water Temperature") +
+    theme_minimal()
+```
+
+## Chunk 3: Plotting Residuals Versus Time
+```{r,echo=F,eval=F}
+TEST6 %>%
+  select(L,A,W,TIME,linres,poly2res,poly3res,poly4res,logres)%>%
+  gather(linres:logres,key="Model",value="Res",factor_key=T) %>%
+    ggplot() + 
+      geom_line(aes(x=TIME,y=Res),color="lightskyblue2") + 
+      geom_hline(yintercept=0,color="black",linetype=2,size=1.5) +
+      xlab("Time") +
+      ylab("Residual") +
+      theme_dark() +
+      facet_grid(Model~.)
+```
+
+## Chunk 4: Evaluating The Location-Specific Error
+```{r,echo=F,eval=F}
+TEST6 %>%
+  select(L,A,W,TIME,linpred,logpred) %>%
+  gather(linpred:logpred,key="Model",value="Pred",factor_key=T) %>%
+    ggplot() +
+      geom_point(aes(x=A,y=W),alpha=0.2) +
+      geom_line(aes(x=A,y=Pred,color=Model),size=2) +
+      theme_minimal()+facet_grid(L~.)
+
+TEST6 %>%
+  select(L,A,W,TIME,linres,logres) %>%
+  gather(linres:logres,key="Model",value="Res",factor_key=T) %>%
+  ggplot() +
+  geom_point(aes(x=A,y=Res,color=Model)) +
+  geom_hline(yintercept=0) +
+  theme_minimal()+facet_grid(L~.)
+
+TEST6 %>%
+  select(L,A,W,TIME,linres,logres) %>%
+  gather(linres:logres,key="Model",value="Res",factor_key=T) %>%
+  ggplot() +
+  geom_point(aes(x=TIME,y=Res,color=Model)) +
+  geom_hline(yintercept=0) +
+  theme_minimal()+facet_grid(L~.)
+```
+
+
+# Part 6: Evaluation by Numerical Summary
+
+## Chunk 1: Functions Required For Evaluating Prediction
+```{r,eval=F}
+bias.func=function(res){
+  bias=mean(res,na.rm=T)
+  return(bias)
+}
+
+mae.func=function(res){
+  mae=mean(abs(res),na.rm=T)
+  return(mae)
+}
+
+rmse.func=function(res){
+  mse=mean(res^2,na.rm=T)
+  rmse=sqrt(mse)
+  return(rmse)
+}
+```
+
+## Chunk 2: Checking Functions 
+Please use `apply` function to calculate Bias, MAE and rMSE for the models.
+```{r,eval=F}
+ex.res.mat=TEST6 %>% select(linres,poly2res,poly3res,poly4res,logres)
+apply(COMPLETE)
+apply(COMPLETE)
+apply(COMPLETE)
+```
+
+## Chunk 3: Get Table Quickly
+```{r,echo=F,eval=F}
+SUMM1=TEST6 %>%
+  select(L,A,W,TIME,linres,poly2res,poly3res,poly4res,logres)%>%
+  rename(Linear=linres,`Poly(2)`=poly2res,`Poly(3)`=poly3res,`Poly(4)`=poly4res,Logistic=logres)%>%
+  gather(Linear:Logistic,key="Model",value="Residual",factor_key=T)
+SUMM2= SUMM1 %>% 
+  group_by(Model) %>%
+  summarize(MB=bias.func(Residual),
+            MAE=mae.func(Residual),
+            RMSE=rmse.func(Residual))
+print(SUMM2)
+```
+
+## Chunk 4: HTML Formatted Table
+
+```{r,echo=F,eval=F}
+SUMM3=xtable(SUMM2,digits=4,align=c("l","l","r","r","r"))
+print(SUMM3,include.rownames=F,type="html")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
